@@ -464,7 +464,7 @@ func main() {
 	flag.Parse()
 
 	port := fmt.Sprintf(":%d", *p)
-	fmt.Printf("media listening on \"%s\" at path \"%s\"\n", port, *path)
+	fmt.Printf("static listener on \"%s\" at path \"%s\"\n", port, *path)
 	//err = http.ListenAndServe(port, http.FileServer(http.Dir(*path)))
 	// TODO: was looking into using BlackFriday to render Markdown...
 	var handler http.Handler
