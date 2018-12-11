@@ -14,8 +14,8 @@ import (
 
 	//"github.com/russross/blackfriday"
 	//"github.com/russross/blackfriday"
-	//"gopkg.in/russross/blackfriday.v2"
-	"github.com/shurcooL/github_flavored_markdown"
+	"gopkg.in/russross/blackfriday.v2"
+	//"github.com/shurcooL/github_flavored_markdown"
 )
 
 var markdownTemplate, _ = template.New("markdown").Parse(`<!doctype html>
@@ -202,6 +202,7 @@ table {
     display: block;
     overflow: auto;
     width: 100%;
+	border-collapse: collapse;
 }
 
     table th, table td {
@@ -378,9 +379,9 @@ func markdownToHTML(file string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	output := github_flavored_markdown.Markdown(data)
+	//output := github_flavored_markdown.Markdown(data)
 	//output := blackfriday.MarkdownBasic(data)
-	//output := blackfriday.Run(data)
+	output := blackfriday.Run(data)
 	return output, nil
 }
 
