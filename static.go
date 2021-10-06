@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"html/template"
@@ -12,15 +13,16 @@ import (
 	"path/filepath"
 	"strings"
 
-	//"github.com/russross/blackfriday"
-	//"github.com/russross/blackfriday"
-	"gopkg.in/russross/blackfriday.v2"
-	//"github.com/shurcooL/github_flavored_markdown"
+	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/extension"
+	"github.com/yuin/goldmark/parser"
+	"github.com/yuin/goldmark/renderer/html"
 )
 
 var markdownTemplate, _ = template.New("markdown").Parse(`<!doctype html>
 <html>
 <head>
+	<link rel="shortcut icon"type="image/x-icon" href="data:image/x-icon;,">
 	<title>{{.Name}}</title>
 	{{- if .CSS}}
 	<link rel="stylesheet" href="{{.CSS}}">
@@ -214,6 +216,7 @@ table {
         background-color: #f8f8f8;
     }
 
+/* TODO: Something in here is stripping line-breaks */
 code {
     display: inline-block;
     overflow: auto;
@@ -224,7 +227,7 @@ code {
     border-radius: 3px;
     background-color: #f8f8f8;
     vertical-align: middle;
-    white-space: nowrap;
+    /*white-space: nowrap;*/
     line-height: 1.3;
 }
 
@@ -235,13 +238,13 @@ code {
 
 pre {
     overflow: auto;
-    padding: 6px 10px;
+    /*padding: 6px 10px;*/
+    padding: 2px 3px;
     border: 1px solid #ddd;
     border-radius: 3px;
     background-color: #f8f8f8;
     word-wrap: normal;
     font-size: 13px;
-    /*line-height: 19px;*/
 	line-height: 1.2em;
 }
 
@@ -290,8 +293,8 @@ nav a:visited {
 }
 	</style>{{end}}
 
-	<link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/styles/default.min.css">
-	<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/highlight.min.js"></script>
+	<!--<link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.15.10/styles/default.min.css">
+	<script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.15.10/highlight.min.js"></script>-->
 </head>
 <body>
 
@@ -302,19 +305,32 @@ nav a:visited {
 ~function (d) {
 	'use strict';
 
-	var pres = d.querySelectorAll('div.highlight > pre');
-	if (pres.length > 0) {
+	//var pres = d.querySelectorAll('div.highlight > pre');
+	var codes = d.querySelectorAll('pre > code');
+	console.log(codes.length)
+	if (codes.length > 0) {
 		var css = d.createElement('link'),
 			js = d.createElement('script');
 
-		css.setAttribute('rel', 'stylesheet');
-		css.setAttribute('href', '//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/styles/default.min.css');
-		js.setAttribute('src', '//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/highlight.min.js');
+		//css.setAttribute('rel', 'stylesheet');
+		//css.setAttribute('href', '//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.15.10/styles/default.min.css');
+		//js.setAttribute('src', '//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.15.10/highlight.min.js');
+
+		css.async = true;
+		css.rel = 'stylesheet';
+		//css.href = '//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.18.1/styles/default.min.css';
+		css.href = '/_/highlightjs/styles/github-gist.css';
+		js.async = true;
+		//js.src = '//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.18.1/highlight.min.js';
+		js.src = '/_/highlightjs/highlight.pack.js';
+		js.onreadystatechange = js.onload = function () {
+			if (!js.readyState || /loaded|complete/.test(js.readyState)) {
+				Array.prototype.forEach.call(codes, function (block) { hljs.highlightBlock(block); });
+			}
+		}
 
 		d.head.appendChild(css);
 		d.head.appendChild(js);
-
-		Array.prototype.forEach.call(pres, function (block) { hljs.highlightBlock(block); });
 	}
 }(document);
 
@@ -330,7 +346,8 @@ nav a:visited {
 			text = document.createElement('span');
 		} else {
 			text = document.createElement('a');
-			text.href = path == '/' ? '/index.md' : path + '/index.md';
+			//text.href = path == '/' ? '/index.md' : path + '/index.md';
+			text.href = path
 		}
 		text.textContent = name;
 		elem.appendChild(text);
@@ -357,6 +374,7 @@ nav a:visited {
 	
 	nav.appendChild(breadcrumb);
 	d.body.insertBefore(nav, d.body.firstChild);
+	//hljs.initHighlightingOnLoad();
 	
 }(document);
 
@@ -379,13 +397,32 @@ func markdownToHTML(file string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	//output := github_flavored_markdown.Markdown(data)
-	//output := blackfriday.MarkdownBasic(data)
-	output := blackfriday.Run(data)
-	return output, nil
+	md := goldmark.New(
+		goldmark.WithExtensions(
+			extension.GFM,
+			extension.Footnote,
+			extension.Linkify,
+			extension.Strikethrough,
+			extension.Table,
+			extension.TaskList,
+			extension.Typographer,
+		),
+		goldmark.WithParserOptions(
+			parser.WithAutoHeadingID(),
+			parser.WithBlockParsers(),
+		),
+		goldmark.WithRendererOptions(
+			html.WithUnsafe(),
+		),
+	)
+	var buf bytes.Buffer
+	err = md.Convert(data, &buf)
+	if err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), err
 }
 
-//func writeMarkDown(w io.Writer, name, css string, md []byte) error {
 func writeMarkDown(w http.ResponseWriter, name, css string, md []byte) error {
 	content := template.HTML(md)
 	return markdownTemplate.Execute(w, variables{name, css, content})
@@ -413,7 +450,6 @@ func cleanRequestPath(r *http.Request) string {
 	return path.Clean(p)
 }
 
-// TODO: was looking into using BlackFriday to render Markdown...
 func markdownHandler(root string) http.Handler {
 	svr := http.FileServer(http.Dir(root))
 	fn := func(w http.ResponseWriter, r *http.Request) {
@@ -427,7 +463,6 @@ func markdownHandler(root string) http.Handler {
 		if handleFileError(w, err) {
 			return
 		}
-		// TODO: Get CSS from query-string
 		css := r.URL.Query().Get("css")
 		writeMarkDown(w, p, css, md)
 	}
@@ -461,20 +496,17 @@ func main() {
 
 	p := flag.Int("port", 9000, "Port number")
 	path := flag.String("path", d, "Content path")
-	isSinglePage := flag.Bool("single", false, "Wether this is a single page site or not (eg. react-router)")
+	isSinglePage := flag.Bool("single", false, "Whether this is a single page site or not (eg. react-router)")
 	flag.Parse()
 
 	port := fmt.Sprintf(":%d", *p)
 	fmt.Printf("static listener on \"%s\" at path \"%s\"\n", port, *path)
-	//err = http.ListenAndServe(port, http.FileServer(http.Dir(*path)))
-	// TODO: was looking into using BlackFriday to render Markdown...
 	var handler http.Handler
 	if *isSinglePage {
 		handler = singlePageHandler(*path)
 	} else {
-		handler = markdownHandler(*path)
+		http.Handle("/", markdownHandler(*path))
 	}
-	//err = http.ListenAndServe(port, handler(*path))
 	err = http.ListenAndServe(port, handler)
 	log.Fatalln(err)
 }
